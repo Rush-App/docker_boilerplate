@@ -1,0 +1,35 @@
+server {
+    server_name $BACKEND_DOMAIN_NAME www.$BACKEND_DOMAIN_NAME;
+    index index.html index.htm index.php;
+    root /var/www/api/public/;
+
+    client_max_body_size 64M;
+    charset utf-8;
+
+    location / {
+        try_files $uri $uri/ /index.php$is_args$args;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass php-fpm:9000;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+    listen 443 ssl;
+    ssl_certificate /etc/letsencrypt/live/$BACKEND_DOMAIN_NAME/fullchain.pem; #for_production
+    ssl_certificate_key /etc/letsencrypt/live/$BACKEND_DOMAIN_NAME/privkey.pem; #for_production
+    include /etc/letsencrypt/options-ssl-nginx.conf; #for_production
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; #for_production
+}
+
+
+server {
+    if ($host = $BACKEND_DOMAIN_NAME) {
+        return 301 https://$host$request_uri;
+    }
+
+    server_name $BACKEND_DOMAIN_NAME www.$BACKEND_DOMAIN_NAME;
+    listen 80;
+    return 404;
+}

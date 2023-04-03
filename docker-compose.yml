@@ -1,0 +1,107 @@
+version: '3.8'
+networks:
+  app-network:
+    driver: bridge
+services:
+  frontend-app:
+    env_file:
+      - .env
+    build:
+      context: ../frontend-app
+      dockerfile: ${FRONTEND_DOCKERFILE_PATH}
+    container_name: frontend-app
+    restart: unless-stopped
+    depends_on:
+      - backend-app
+    volumes:
+      - ../frontend-app/:/var/www/frontend
+    networks:
+      - app-network
+  backend-app:
+    env_file:
+      - .env
+      - ${BACKEND_ENV_PATH}
+      - ${DATABASE_ENV_PATH}
+    build:
+      context: ../backend-app
+      dockerfile: ../docker/backend-app/Dockerfile
+      args:
+        - USER_ID=${USER_ID}
+    container_name: backend-app
+    restart: unless-stopped
+    depends_on:
+      - database
+    volumes:
+      - ../backend-app/:/var/www/api
+      - ./backend-app/php/laravel.ini:/usr/local/etc/php/conf.d/laravel.ini
+      - ./backend-app/supervisor/:/etc/supervisor/conf.d
+    networks:
+      - app-network
+  php-fpm:
+    env_file:
+      - .env
+    build:
+      context: php-fpm
+      args:
+        - USER_ID=${USER_ID}
+    container_name: php-fpm
+    restart: unless-stopped
+    volumes:
+      - ../backend-app/:/var/www/api
+    networks:
+      - app-network
+  database:
+    env_file:
+      - .env
+      - ${DATABASE_ENV_PATH}
+    image: postgres:alpine
+    container_name: database
+    restart: unless-stopped
+    volumes:
+      - ${DATABASE_VOLUME}
+    networks:
+      - app-network
+  redis:
+    image: redis:alpine
+    container_name: redis
+    restart: unless-stopped
+    networks:
+      - app-network
+  certbot:
+    env_file:
+      - .env
+    image: certbot/certbot
+    container_name: certbot
+    restart: unless-stopped
+    volumes:
+      - ${LETSENCRYPT_VOLUME}
+      - ${CERTBOT_VOLUME}
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    profiles:
+      - production
+    networks:
+      - app-network
+  nginx:
+    env_file:
+      - .env
+    image: nginx:alpine
+    container_name: nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - frontend-app
+      - backend-app
+    volumes:
+      - ../backend-app/:/var/www/api
+      - ${NGINX_MAIN_CONF_VOLUME}
+      - ${NGINX_CONF_D_VOLUME}
+      - ${LETSENCRYPT_VOLUME}
+      - ${CERTBOT_VOLUME}
+    command: >
+      sh -c "envsubst '$$FRONTEND_DOMAIN_NAME $$BACKEND_DOMAIN_NAME' < /etc/nginx/conf.d/frontend-app.conf.template > /etc/nginx/conf.d/frontend-app.conf &&
+             envsubst '$$BACKEND_DOMAIN_NAME' < /etc/nginx/conf.d/backend-app.conf.template > /etc/nginx/conf.d/backend-app.conf &&
+             (while :; do sleep 6h & wait $${!}; nginx -s reload; done) & nginx -g 'daemon off;'"
+    networks:
+      - app-network
