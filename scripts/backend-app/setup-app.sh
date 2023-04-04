@@ -5,6 +5,7 @@ docker-compose run --rm backend-app sh -c "\
     composer install && \
     cp .env.example .env && \
     php artisan key:generate && \
+    php artisan cache:clear && php artisan config:cache && php artisan optimize
     php artisan migrate\
 "
 
