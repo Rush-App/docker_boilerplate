@@ -1,4 +1,5 @@
 docker-compose run --rm backend-app sh -c "\
+    until pg_isready -h database -p 5432; do sleep 1; done && \
     curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/bin --filename=composer && \
     cd /var/www/api && \
     composer install && \
