@@ -10,7 +10,7 @@ RUN curl -sSLf \
 
 RUN cp /usr/local/etc/php/php.ini-development /usr/local/etc/php/php.ini
 
-RUN apt-get update && apt-get install -y supervisor nano
+RUN apt-get update && apt-get install -y supervisor postgresql-client nano
 
 RUN chmod -R 777 /tmp /var/tmp
 
